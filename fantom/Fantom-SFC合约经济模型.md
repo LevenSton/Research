@@ -1,6 +1,7 @@
-# Fantom经济模型解析
+# Fantom 经济模型解析
 
 ## 1. 发布前融资
+
 种子销售：2018 年 2 月以每个代币 0.016 美元的价格出售了 1 亿个 FTM 代币，共筹集了 160 万美元。
 首次私募：2018 年 5 月以每个代币 0.031 美元的价格出售了 8.05 亿个 FTM 代币，共筹集了 2480 万美元。
 第二次私募：2018 年 6 月以每个代币 0.035 美元的价格出售了 3.71 亿个代币，共筹集了 1290 万美元。
@@ -11,47 +12,56 @@
 投资者：41.76%
 
 ## 2. 经济激励机制/分配方法
-### 2.1. 节点奖励比重计算方法
-validator的奖励由2个独立的数字加权：交易奖励权重和基础奖励权重。
-* transactions reward weight：
-验证者将在epoch结束时收到的交易费用份额。
-* base reward weight：
-验证者将在epoch结束时收到的基本奖励（新铸造token）的份额。
 
-* 公式计算：
-    * transactions reward weight = originated fee * uptime
-    * base reward weight = stake * (uptime ^ 2)
+### 2.1. 节点奖励比重计算方法
+
+validator 的奖励由 2 个独立的数字加权：交易奖励权重和基础奖励权重。
+
+- transactions reward weight：
+  验证者将在 epoch 结束时收到的交易费用份额。
+- base reward weight：
+  验证者将在 epoch 结束时收到的基本奖励（新铸造 token）的份额。
+
+- 公式计算：
+  - transactions reward weight = originated fee \* uptime
+  - base reward weight = stake \* (uptime ^ 2)
 
 其中：
-* stake: 总质押数
-* uptime: 整个epoch期间节点在线的纳秒数
-* originated fee: 节点在epoch期间处理的总交易的费用
 
-originated fee可以粗略地估计为：
-* stake share * uptime * network fee per nanosecond
-代入公式，可以得到:
-* transactions reward weight = (stake share * uptime * network fee per nanosecond)*uptime
+- stake: 总质押数
+- uptime: 整个 epoch 期间节点在线的纳秒数
+- originated fee: 节点在 epoch 期间处理的总交易的费用
+
+originated fee 可以粗略地估计为：
+
+- stake share _ uptime _ network fee per nanosecond
+  代入公式，可以得到:
+- transactions reward weight = (stake share _ uptime _ network fee per nanosecond)\*uptime
 
 ### 2.2. 节点奖励构成
-* transactions reward 交易费
-整个epoch消耗的交易费用，会发送到SFC合约，30%燃烧掉，剩余的70%根据#2.1节的各节点比重分配给validator.
-* Base rewards 基础奖励
-Base rewards = epoch duration in second * base reward per second. 
-Base reward per second 由SFC合约配置，各节点具体可得根据#2.1节的各节点比重分配
 
-* 委托人的奖励要分出固定的15%给validator
+- transactions reward 交易费
+  整个 epoch 消耗的交易费用，会发送到 SFC 合约，30%燃烧掉，剩余的 70%根据#2.1 节的各节点比重分配给 validator.
+- Base rewards 基础奖励
+  Base rewards = epoch duration in second \* base reward per second.
+  Base reward per second 由 SFC 合约配置，各节点具体可得根据#2.1 节的各节点比重分配
 
-## 3. Fantom SFC系列合约解析
+- 委托人的奖励要分出固定的 15%给 validator
+
+## 3. Fantom SFC 系列合约解析
+
 ### 3.1. 合约文件架构
+
 ConstansManaget 合约：一些系统参数变量的记录
-GasPriceConstants 合约：Gas动态的调整
+GasPriceConstants 合约：Gas 动态的调整
 NetworkInitialzer 合约：初始化各合约的关系以及配置
 NodeDriver 合约： 与节点挂钩，仅支持节点调用
-NodeDriverAuth 合约：配合SFC和NodeDriver，对两边的状态进行修改，函数只允许对应的合约调用
-SFC 合约：Token合约，对奖励的分配以及原生代币的操作
+NodeDriverAuth 合约：配合 SFC 和 NodeDriver，对两边的状态进行修改，函数只允许对应的合约调用
+SFC 合约：Token 合约，对奖励的分配以及原生代币的操作
 
 ### 3.2. ConstansManaget
-minSelfStake：成为validator最小抵押量
+
+minSelfStake：成为 validator 最小抵押量
 maxDelegatedRatio：最多能接受多少倍的委托量
 validatorCommission：收取委托人收益的费率
 burntFeeShare：燃烧手续费用的百分比
@@ -64,10 +74,11 @@ withdrawalPeriodTime：未委托股权被锁定的时间
 baseRewardPerSecond：每秒基础奖励
 offlinePenaltyThresholdBlocksNum：容许的最大掉块数
 offlinePenaltyThresholdTime：容许的最大掉线时间
-targetGasPowerPerSecond：每秒最大的gaspower
-gasPriceBalancingCounterweight：gasPrice计算权重
+targetGasPowerPerSecond：每秒最大的 gaspower
+gasPriceBalancingCounterweight：gasPrice 计算权重
 
-### 3.3. NodeDriver合约
+### 3.3. NodeDriver 合约
+
 ```shell
 //设置账号的Ftm余额
 function setBalance(address acc, uint256 value) external onlyBackend
@@ -86,7 +97,9 @@ function updateValidatorWeight(uint256 validatorID, uint256 value) external only
 //修改validator的pubkey
 function updateValidatorPubkey(uint256 validatorID, bytes calldata pubkey) external onlyBackend
 ```
-==========以上接口只允许NodeDriverAuth合约调用============
+
+==========以上接口只允许 NodeDriverAuth 合约调用============
+
 ```shell
 //设置Genesis validator
 function setGenesisValidator(address _auth, uint256 validatorID, bytes calldata pubkey, uint256 status, uint256 createdEpoch, uint256 createdTime, uint256 deactivatedEpoch, uint256 deactivatedTime) external onlyNode
@@ -101,16 +114,21 @@ function sealEpoch(uint256[] calldata offlineTimes, uint256[] calldata offlineBl
 //Epoch结束后进行结算V1版本
 function sealEpochV1(uint256[] calldata offlineTimes, uint256[] calldata offlineBlocks, uint256[] calldata uptimes, uint256[] calldata originatedTxsFee, uint256 usedGas) external onlyNode
 ```
-==========以上接口只允许Fantom节点源码调用，与源码hook住============
 
-### 3.4. NodeDriverAuth合约
-NodeDriverAuth作为SFC合约和NodeDriver合约的桥接，NodeDriver <=> NodeDriverAuth <=> sfc合约。
-NodeDriverAuth的接口分为两部分，都做了权限控制。
-一部分接口供NodeDriver调用，一部分供SFC调用。
+==========以上接口只允许 Fantom 节点源码调用，与源码 hook 住============
 
-### 3.5. SFC合约
-作为管理reward合约，负责激励的铸造/分发/奖惩/配置修改/等功能。
-* 状态变量详解
+### 3.4. NodeDriverAuth 合约
+
+NodeDriverAuth 作为 SFC 合约和 NodeDriver 合约的桥接，NodeDriver <=> NodeDriverAuth <=> sfc 合约。
+NodeDriverAuth 的接口分为两部分，都做了权限控制。
+一部分接口供 NodeDriver 调用，一部分供 SFC 调用。
+
+### 3.5. SFC 合约
+
+作为管理 reward 合约，负责激励的铸造/分发/奖惩/配置修改/等功能。
+
+- 状态变量详解
+
 ```shell
 //Validator 结构体
 struct Validator {
@@ -194,7 +212,8 @@ ConstantsManager internal c; //SFC参数配置合约地址
 address public voteBookAddress; //治理投票合约地址
 ```
 
-### 3.6. Reward奖励计算流程
+### 3.6. Reward 奖励计算流程
+
 ```plantuml
 @startuml
 actor user
