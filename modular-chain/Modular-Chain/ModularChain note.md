@@ -48,6 +48,38 @@ abci.go -> TerdenmintCore: 返回ResponseDeliverTx
 @enduml
 ```
 
+### 类图
+
+```plantuml
+@startuml
+
+class SimApp {
+ -appCodec codec.Codec
+ -keys map[string]*storetypes.KVStoreKey
+ -AccountKeeper authkeeper.AccountKeeper
+ -BankKeeper bankkeeper.Keeper
+ -......
+ -mm *module.Manager
+ +InitChainer(ctx sdk.Context, req abci.RequestInitChain)
+ +BeginBlocker(ctx sdk.Context, req abci.RequestBeginBlock)
+ +EndBlocker(ctx sdk.Context, req abci.RequestEndBlock)
+}
+class BaseApp{
+  -anteHandler sdk.AnteHandler
+  -appStore
+  -moduleRouter
+  -txDecoder sdk.TxDecoder
+  -......
+  +MountKVStores(keys map[string]*storetypes.KVStoreKey)
+  +BeginBlock(req abci.RequestBeginBlock)
+  +CheckTx(req abci.RequestCheckTx)
+  +DeliverTx(req abci.RequestDeliverTx)
+  +......
+}
+class SimApp extends BaseApp
+@enduml
+```
+
 ### BeginBlock
 
 - BeginBlock 流程
@@ -83,59 +115,44 @@ abci.go -> TerdenmintCore: 返回ResponseDeliverTx
 
 ```go
 type SimApp struct {
-	*runtime.App                                        //sdk中基础的app结构
+	*baseapp.BaseApp
 	legacyAmino       *codec.LegacyAmino
-	appCodec          codec.Codec                       //编解码结构
-	txConfig          client.TxConfig                   //txConfig配置
-	interfaceRegistry codectypes.InterfaceRegistry
+	appCodec          codec.Codec
+	interfaceRegistry types.InterfaceRegistry
+
+	invCheckPeriod uint
+
+	// keys to access the substores
+	keys    map[string]*storetypes.KVStoreKey
+	tkeys   map[string]*storetypes.TransientStoreKey
+	memKeys map[string]*storetypes.MemoryStoreKey
 
 	// keepers
-	AccountKeeper         authkeeper.AccountKeeper      //各模块的Kepper，Keeper中包含了store key
-	BankKeeper            bankkeeper.Keeper
-	CapabilityKeeper      *capabilitykeeper.Keeper
-	StakingKeeper         *stakingkeeper.Keeper
-	SlashingKeeper        slashingkeeper.Keeper
-	MintKeeper            mintkeeper.Keeper
-	DistrKeeper           distrkeeper.Keeper
-	GovKeeper             *govkeeper.Keeper
-	CrisisKeeper          *crisiskeeper.Keeper
-	UpgradeKeeper         *upgradekeeper.Keeper
-	ParamsKeeper          paramskeeper.Keeper
-	AuthzKeeper           authzkeeper.Keeper
-	EvidenceKeeper        evidencekeeper.Keeper
-	FeeGrantKeeper        feegrantkeeper.Keeper
-	GroupKeeper           groupkeeper.Keeper
-	NFTKeeper             nftkeeper.Keeper
-	ConsensusParamsKeeper consensuskeeper.Keeper
+	AccountKeeper    authkeeper.AccountKeeper
+	BankKeeper       bankkeeper.Keeper
+	CapabilityKeeper *capabilitykeeper.Keeper
+	StakingKeeper    stakingkeeper.Keeper
+	SlashingKeeper   slashingkeeper.Keeper
+	MintKeeper       mintkeeper.Keeper
+	DistrKeeper      distrkeeper.Keeper
+	GovKeeper        govkeeper.Keeper
+	CrisisKeeper     crisiskeeper.Keeper
+	UpgradeKeeper    upgradekeeper.Keeper
+	ParamsKeeper     paramskeeper.Keeper
+	AuthzKeeper      authzkeeper.Keeper
+	EvidenceKeeper   evidencekeeper.Keeper
+	FeeGrantKeeper   feegrantkeeper.Keeper
+	GroupKeeper      groupkeeper.Keeper
+	NFTKeeper        nftkeeper.Keeper
+
+	// the module manager
+	mm *module.Manager
 
 	// simulation manager
 	sm *module.SimulationManager
-}
-// App 是 BaseApp 和 ModuleManager 的包装器，可以混合使用
-// app.go/app 配置方案或直接作为 servertypes.Application 实例。
-// 要获取 *App 的实例，必须将 *AppBuilder 作为依赖请求
-// 在声明运行时模块和 AppBuilder.Build() 的容器中
-// 必须调用方法。
-// App 可用于创建混合 app.go 设置，其中包含一些配置
-// 使用应用程序配置以声明方式完成，其余部分以旧方式完成。
-// 有关此设置的示例，请参阅 simapp/app.go。
-type App struct {
-	*baseapp.BaseApp
 
-	ModuleManager     *module.Manager
-	configurator      module.Configurator
-	config            *runtimev1alpha1.Module
-	storeKeys         []storetypes.StoreKey
-	interfaceRegistry codectypes.InterfaceRegistry
-	cdc               codec.Codec
-	amino             *codec.LegacyAmino
-	basicManager      module.BasicManager
-	baseAppOptions    []BaseAppOption
-	msgServiceRouter  *baseapp.MsgServiceRouter
-	appConfig         *appv1alpha1.Config
-	// initChainer is the init chainer function defined by the app config.
-	// this is only required if the chain wants to add special InitChainer logic.
-	initChainer sdk.InitChainer
+	// module configurator
+	configurator module.Configurator
 }
 // BaseApp reflects the ABCI application implementation.
 //BaseApp 反映了 ABCI 应用程序的实现
