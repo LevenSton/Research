@@ -48,37 +48,82 @@ abci.go -> TerdenmintCore: 返回ResponseDeliverTx
 @enduml
 ```
 
-### 类图
+### 随笔记
+
+![archi](./pic/cosmosnode.jpg)
 
 ```plantuml
 @startuml
 
-class SimApp {
- -appCodec codec.Codec
- -keys map[string]*storetypes.KVStoreKey
- -AccountKeeper authkeeper.AccountKeeper
- -BankKeeper bankkeeper.Keeper
- -......
- -mm *module.Manager
- +InitChainer(ctx sdk.Context, req abci.RequestInitChain)
- +BeginBlocker(ctx sdk.Context, req abci.RequestBeginBlock)
- +EndBlocker(ctx sdk.Context, req abci.RequestEndBlock)
+class SimApp
+class Manager{
+  +Modules map[string]AppModule
+  +RegisterServices(cfg Configurator)
 }
-class BaseApp{
-  -anteHandler sdk.AnteHandler
-  -appStore
-  -moduleRouter
-  -txDecoder sdk.TxDecoder
-  -......
-  +MountKVStores(keys map[string]*storetypes.KVStoreKey)
-  +BeginBlock(req abci.RequestBeginBlock)
-  +CheckTx(req abci.RequestCheckTx)
-  +DeliverTx(req abci.RequestDeliverTx)
-  +......
+class AccountKeeper
+class OtherKeeper
+class BaseApp
+interface module_AppModule
+interface module_AppModuleGenesis
+interface module_AppModuleBasic
+class auth_AppModule{
+  +RegisterServices(cfg module.Configurator)
+}
+class other_AppModule{
+  +RegisterServices(cfg module.Configurator)
+}
+class MsgServiceRouter {
+	-routes map[string]MsgServiceHandler
+  +RegisterService(sd *grpc.ServiceDesc, handler interface{})
+}
+interface module_Configurator{
+  +MsgServer() grpc.Server
+	+QueryServer() grpc.Server
+}
+class configurator {
+	-msgServer   grpc.Server
+	-queryServer grpc.Server
+}
+class ServiceDesc {
+	+ServiceName string
+	+HandlerType interface{}
+	+Methods     []MethodDesc
+	+Streams     []StreamDesc
+	+Metadata    interface{}
+}
+class msgServer {
+	Keeper
 }
 class SimApp extends BaseApp
+class BaseApp extends MsgServiceRouter
+SimApp o-- Manager
+SimApp o-- AccountKeeper
+SimApp o-- OtherKeeper
+interface module_AppModule extends module_AppModuleGenesis
+interface module_AppModuleGenesis extends module_AppModuleBasic
+Manager o-- auth_AppModule
+Manager o-- other_AppModule
+class auth_AppModule extends module_AppModule
+class other_AppModule extends module_AppModule
+class configurator extends module_Configurator
+auth_AppModule *.. ServiceDesc
+auth_AppModule *.. msgServer
+AccountKeeper o-- msgServer
+SimApp o-- configurator
+MsgServiceRouter *.. ServiceDesc
+MsgServiceRouter *.. AccountKeeper
 @enduml
 ```
+
+- 在 app.go 中创建定义的状态机实例
+- 使用从存储在~/.app/data 文件夹中的数据库中提取的最新已知状态初始化状态机
+- 创建并启动一个新的 Tendermint 实例。节点将与其对等方进行握手，获取最新的 blockHeight，并回放块以同步到此高度（如果它大于本地 appBlockHeight）。如果 appBlockHeight 为 0，则节点从创世区块开始运行，并通过 ABCI 向应用程序发送 InitChain 消息，触发 InitChainer。
+
+* App 实例包含：（App.go）
+  - baseapp 的引用，Cosmos Sdk 中的
+  - A list of store keys，一组存储 key，要操作对于的存储要使用对应的 key
+  - A list of module's keepers。每个模块都定义了一个抽象的保管者，用于处理该模块存储的读写操作，要使用对应的 key 创建 Kepper
+  - A reference to a module manager and a basic module manager，模块管理器是一个包含应用程序模块列表的对象。它方便与这些模块相关的操作，例如注册它们的 Msg 服务和 gRPC 查询服务，或为各种功能（如 InitChainer、BeginBlocker 和 EndBlocker）设置模块之间执行顺序。
 
 ### BeginBlock
 
