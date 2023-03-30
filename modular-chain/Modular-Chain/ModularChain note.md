@@ -60,7 +60,7 @@ class Manager{
   +Modules map[string]AppModule
   +RegisterServices(cfg Configurator)
 }
-class AccountKeeper
+class Bank_BaseKeeper
 class OtherKeeper
 class BaseApp
 interface module_AppModule
@@ -97,7 +97,7 @@ class msgServer {
 class SimApp extends BaseApp
 class BaseApp extends MsgServiceRouter
 SimApp o-- Manager
-SimApp o-- AccountKeeper
+SimApp o-- Bank_BaseKeeper
 SimApp o-- OtherKeeper
 interface module_AppModule extends module_AppModuleGenesis
 interface module_AppModuleGenesis extends module_AppModuleBasic
@@ -108,10 +108,10 @@ class other_AppModule extends module_AppModule
 class configurator extends module_Configurator
 auth_AppModule *.. ServiceDesc
 auth_AppModule *.. msgServer
-AccountKeeper o-- msgServer
+Bank_BaseKeeper o-- msgServer
 SimApp o-- configurator
 MsgServiceRouter *.. ServiceDesc
-MsgServiceRouter *.. AccountKeeper
+MsgServiceRouter *.. Bank_BaseKeeper
 @enduml
 ```
 
@@ -145,7 +145,7 @@ MsgServiceRouter *.. AccountKeeper
 - TxFlow 模块
   ![archi](./pic/TxFlow.png)
 
-### Application 组成
+### App-Specific 组成
 
 - customApp.go
   自定义应用程序,是 sdk 中 baseapp 的扩展。当 TerdenmintCore 将交易中继到应用程序时，应用程序使用 baseapp 的方法将其路由到适当的模块。baseapp 实现了大部分应用程序的核心逻辑，包括所有 ABCI 方法和路由逻辑。
@@ -173,8 +173,8 @@ type SimApp struct {
 	memKeys map[string]*storetypes.MemoryStoreKey
 
 	// keepers
-	AccountKeeper    authkeeper.AccountKeeper
-	BankKeeper       bankkeeper.Keeper
+	Bank_BaseKeeper    authkeeper.Bank_BaseKeeper
+	Bank_BaseKeeper       bankkeeper.Keeper
 	CapabilityKeeper *capabilitykeeper.Keeper
 	StakingKeeper    stakingkeeper.Keeper
 	SlashingKeeper   slashingkeeper.Keeper
@@ -300,15 +300,49 @@ celestia-app 是建立在 celestia-core 之上的，后者是 Tendermint 共识�
 
 Celestia-app 仓库 属于 Consensus Network，是运行 Validator Node 和 Consensus Full Node 必须跑的程序，celestia-node 仓库是 Bridge/Light/Full-Storage 节点跑的程序。
 
-## Cosmos 与 Celestia 差异
+## Cosmos SDK 与 Celestia rollkit 差异
 
-- Cosmos 利用 Cosmos SDK 搭建了 Cosmos Hub，愿景是让项目方使用 Tendermint + Cosmos SDK 非常方便的搭建链，然后这些 App-chain 与 Cosmos Hub 连接，形成以 CosmoHub 为中心的区块链网络，形成万链互连的局面。本质上 App-chain 是一条完整的独立链，拥有执行层/共识层/网络层/数据存储层，Cosmos 只是提供了一套工具让项目方方便的搭建区块链，并鼓励 App-chain 与 Cosmos Hub 互连
-- Celestia 也是利用 Cosmos SDK 搭建了 Celestia-app，形成一个 DA layer 链，通过 DAS(Data availability sampling)与 NMTs(Namespaced Merkle Trees)技术，为基于 Rollkit 工具生成的 Rollup 提供数据服务，Celestia 的愿景是自己基于 Cosmos SDK 搭建链一条链，鼓励项目方使用 Rollkit 工具方便的搭 Rollup，并把 DA 服务委托给 Celestia。
+## Cosmos SDK
 
-====================
+- Cosmos SDK 应用链架构
 
-- Cosmos
-  ![archi](./pic/cosmoshub.png)
+![archi](./pic/cosmosnode.jpg)
 
-- Celestia
-  ![archi](./pic/CelestiaS.png)
+- 共识
+  采用 Tendermint 共识，每个节点对等权利，BFT 类算法，能抵抗 1/3 恶意节点
+- 应用链基于 Cosmos SDK 搭建，模块化组件，方便用户搭建 application-specific blockchain
+- Tendermint Core 通过 ABCI 接口协议于应用链通信
+
+Tx 流程是：
+
+1. Tendermint Core 收到 Tx，通过 ABCI 发送给 App-Specific
+2. App-Specific 通过 CheckTx 校验合法性
+3. 通过后将交易加入 Mempool，同时广播给其他节点
+4. 出块时间间隔达到后，由出块节点从 mempool 选取交易打包成 Block，发起 proposal
+5. 各节点收到 block proposal 通过 ABCI 调用 App-Specific BeginBlock 函数
+6. 通过 ABCI 调用 App-Specific DeleverTx 函数，块中每笔交易都执行，修改 deliverState 状态
+7. 通过 ABCI 调用 App-Specific EndBlock 代表区块结束
+8. 各节点间进行 BFT 共识，共识达成后，通过 ABCI 调用 App-Specific Commit 函数持久化状态修改
+
+---
+
+- rollkit Tx Flow
+  ![archi](./pic/rollupStr.png)
+- rollkit node
+  ![archi](./pic/rollkitnode.png)
+
+---
+
+Rollkit Tx 流程：
+
+1. 用户将交易发送给 Rollkit node, FullNode 收到交易，像 Cosmos SDK 一样通过 ABCI 调用 CheckTx 校验合法性
+2. 通过校验后，将交易放入 mempool 中
+3. 由 Sequencer Node 负责对交易打包区块，从 Mempool 中收集交易
+4. 通过 ABCI 调用 App-Rollup BeginBlock 函数
+5. 通过 ABCI 调用 App-Rollup DeleverTx 函数，块中每笔交易都执行，修改 deliverState 状态
+6. 通过 ABCI 调用 App-Rollup EndBlock 代表区块结束
+7. 其他 Node 同步区块
+8. Sequencer Node epoch 定时批量将 Blocks push 到 DA Layer 中
+9. FullNode 可以从 DA Layer 拉取数据校验正确性，发现作恶可以发起挑战
+
+目前 rollkit 还不支持 fraud-proofs，使用的是悲观模式，并且轻节点也没实现，DA 层现在只支持 Celestia
