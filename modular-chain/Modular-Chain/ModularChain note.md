@@ -300,9 +300,9 @@ celestia-app 是建立在 celestia-core 之上的，后者是 Tendermint 共识�
 
 Celestia-app 仓库 属于 Consensus Network，是运行 Validator Node 和 Consensus Full Node 必须跑的程序，celestia-node 仓库是 Bridge/Light/Full-Storage 节点跑的程序。
 
-## Cosmos SDK 与 Celestia rollkit 差异
+## Cosmos SDK 与 Rollkit 差异
 
-## Cosmos SDK
+### Cosmos SDK
 
 - Cosmos SDK 应用链架构
 
@@ -326,6 +326,8 @@ Tx 流程是：
 
 ---
 
+### Rollkit
+
 - rollkit Tx Flow
   ![archi](./pic/rollupStr.png)
 - rollkit node
@@ -346,3 +348,22 @@ Rollkit Tx 流程：
 9. FullNode 可以从 DA Layer 拉取数据校验正确性，发现作恶可以发起挑战
 
 目前 rollkit 还不支持 fraud-proofs，使用的是悲观模式，并且轻节点也没实现，DA 层现在只支持 Celestia
+
+## MEP 模块化 Rollup
+
+- MEP Modular Rollup Architecture
+  ![mepArchi](./pic/mepsdk.jpeg)
+
+### Modular Rollup Flow
+
+- Choose VM from VM-Adaptor
+  MEP Modular Rollup SDK support Move VM/Evm/Wasm.
+- Choose DA Layer from DA-Layer Adaptor
+  MEP Modular Rollup SDK support Eth/Celestia/Polygon/Bitcoin
+- Build the config.(Include genesis/Sequencer ...)
+  config the genesis/sequencer/Da/... infomation
+- Luanch Rollup Node
+
+### VM Adaptor
+
+MEP Modular SDK 包含 VM Adaptor，项目方使用 SDK 时候，需要为 Rollup 配置要使用的 VM，
