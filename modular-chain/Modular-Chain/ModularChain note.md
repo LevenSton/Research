@@ -351,7 +351,7 @@ Rollkit Tx 流程：
 
 ## MEP 模块化 Rollup
 
-- MEP Modular Rollup Architecture
+- MEP SDK Componentant
   ![mepArchi](./pic/mepsdk.jpeg)
 
 ### Modular Rollup Flow
@@ -364,6 +364,15 @@ Rollkit Tx 流程：
   config the genesis/sequencer/Da/... infomation
 - Luanch Rollup Node
 
-### VM Adaptor
+### MEP SDK（like celestia's rollkit）
 
-MEP Modular SDK 包含 VM Adaptor，项目方使用 SDK 时候，需要为 Rollup 配置要使用的 VM，
+MEP Modular SDK 可以帮助项目轻松搭建 rollup，项目方只需专注于业务逻辑的编写
+SDK 为项目方提供多种选择，VM 支持 Evm/Wasm/Move VM，支持了更加安全以及高性能的 Move VM，并且可以讲 DA 层托管给其他方，例如：Celestia/Ethereum/BTC/......，前期采用 OP rollup 的解决方案
+使用 MEP SDK 可以让项目轻松搭建 Rollup，实现 Rollup 的冷启动，不用自己组织 Validator，不要自己设计共识，治理等组件
+
+为了实现 Rollup 直接的通信，MEP 采用基于 Cosmos IBC 协议，并且内置在 MEP SDK 中，默认所有新建的 rollup 都与 MEP Roolup 相连，实现以 MEP Roolup 为中心，其他所有 Roolup 通过 MEP Roolup 进行消息传递
+
+### MEP Architechture Diagram
+
+- MEP Rollup Architecture
+  ![mepArchi](./pic/MEP-Rollup.png)
