@@ -32,7 +32,7 @@ Cosmos 架构
 @startuml
 title : Tx 时序图
 entity TerdenmintCore #Red
-TerdenmintCore-> abci.go: InitChain\n创世启动配置起始块高，一些变量等
+TerdenmintCore-> abci.go: InitChain\n创世启动配置起始块高，变量等
 TerdenmintCore-> abci.go: BaseApp.BeginBlock\n每个区块开始前收到RequestBeginBlock
 abci.go -> abci.go: BeginBlock函数配置state，以及一些验证者信息
 TerdenmintCore-> abci.go: BaseApp.CheckTx\n TerdenmintCore发送ABCI接口消息
