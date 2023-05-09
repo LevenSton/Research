@@ -1,11 +1,5 @@
 # Optimism 分析
 
-1.  OP 上的 native token 到底是 ETH 还是别的。 ETH 在 L2 上是原生的，还是合约
-2.  在 L2 上提款的时候，sendCrossDomainMessage 是怎么发给 L1，如果有监听服务的话，是否做到了去中心化
-3.  在 L2 消息路由到 L1 的 Messenger 中的时候，如何去附带一个 proof，让 L1 信服
-4.  在 L1 上提款的时候，finalizeETHWithdrawal 是谁调用的，符合什么条件，比如是否过了挑战期，对应 L2 上的提款 tx 是否在 L1 上已经 finalized
-5.  如果挑战者是成功的，SCC 是怎么 revert 的，以及更加详细的惩罚措施
-
 ## L1 -> L2 Deposit
 
 - 时序图 1
@@ -164,7 +158,7 @@ end box
 ```plantuml
 @startuml
 actor user
-Box "L1" #lightblue
+Box "L2" #lightblue
 user -> L2StandardBridge.sol: withdraw/withdrawTo
 L2StandardBridge.sol -> L2StandardBridge.sol: _initiateWithdrawal/burn token(eth/erc20一样逻辑)
 L2StandardBridge.sol -> CrossDomainEnabled.sol: sendCrossDomainMessage\nemit WithdrawalInitiated
@@ -223,3 +217,47 @@ L1CrossDomainMessage.sol -> L1CrossDomainMessage.sol: _target.call(_message)调�
 relayer 用于测试，生产需要自己用 sdk 嵌入到产品，由用户或者项目方来支付 L1 的 gas 费用
 
 ---
+
+## Withdraw 提款 Proof 证明过程
+
+- L2CrossDomainMessenger sendMessage 函数记录要在 L1 调用数据的 hash 值
+  ```shell
+  function encodeXDomainCalldata(
+        address _target,
+        address _sender,
+        bytes memory _message,
+        uint256 _messageNonce
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodeWithSignature(
+                "relayMessage(address,address,bytes,uint256)",
+                _target,
+                _sender,
+                _message,
+                _messageNonce
+            );
+    }
+    OVM_L2ToL1MessagePasser记录了_message+msg.sender的hash值
+    sentMessages[keccak256(abi.encodePacked(_message, msg.sender))] = true;
+  ```
+- batch-submitter 进程由两个 driver 服务，sequencer-driver/proposera-driver, 对应 appendSequencerBatch 和 appendStateBatch 函数推送到 L1 的 CTC 和 SCC 合约
+- CTC 合约 appendSequencerBatch 根据 calldata 的组织规则(https://community.optimism.io/docs/protocol/compressed-ctc/#initial-solution)解析calldata，nextQueueIndex记录已经成功从L1->L2的交易
+- SCC 合约 appendStateBatch 根据传来的块高的 stateRoot 数组，计算 MerkleRoot, 计算 batchheadhahs/ExtraData,push 到 Buffer 结构体
+  ```shell
+  Lib_OVMCodec.ChainBatchHeader memory batchHeader = Lib_OVMCodec.ChainBatchHeader({
+            batchIndex: getTotalBatches(),
+            batchRoot: Lib_MerkleTree.getMerkleRoot(_batch),
+            batchSize: _batch.length,
+            prevTotalElements: totalElements,
+            extraData: _extraData
+        });
+  ```
+- Buffer 结构体解析
+  ```shell
+  struct Buffer {
+    bytes32 context;
+    mapping(uint256 => bytes32) buf;
+  }
+  buf字段，key(uint256) 为length长度，value(bytes32)代表传进来数据的hash值
+  context: bytes32(最右5个字节代表目前记录的长度,可作为setbuf时的key，左边27个字节存储的是extradata(是totalElements和lastSequencerTimestamp编码组成))
+  ```
