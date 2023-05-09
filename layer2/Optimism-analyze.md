@@ -218,7 +218,7 @@ relayer 用于测试，生产需要自己用 sdk 嵌入到产品，由用户或�
 
 ---
 
-## Withdraw 提款 Proof 证明过程
+## Withdraw 提款 Proof 证明产生过程
 
 - L2CrossDomainMessenger sendMessage 函数记录要在 L1 调用数据的 hash 值
   ```shell
@@ -245,12 +245,12 @@ relayer 用于测试，生产需要自己用 sdk 嵌入到产品，由用户或�
 - SCC 合约 appendStateBatch 根据传来的块高的 stateRoot 数组，计算 MerkleRoot, 计算 batchheadhahs/ExtraData,push 到 Buffer 结构体
   ```shell
   Lib_OVMCodec.ChainBatchHeader memory batchHeader = Lib_OVMCodec.ChainBatchHeader({
-            batchIndex: getTotalBatches(),
-            batchRoot: Lib_MerkleTree.getMerkleRoot(_batch),
-            batchSize: _batch.length,
-            prevTotalElements: totalElements,
-            extraData: _extraData
-        });
+      batchIndex: getTotalBatches(),
+      batchRoot: Lib_MerkleTree.getMerkleRoot(_batch),
+      batchSize: _batch.length,
+      prevTotalElements: totalElements,
+      extraData: _extraData
+  });
   ```
 - Buffer 结构体解析
   ```shell
@@ -261,3 +261,51 @@ relayer 用于测试，生产需要自己用 sdk 嵌入到产品，由用户或�
   buf字段，key(uint256) 为length长度，value(bytes32)代表传进来数据的hash值
   context: bytes32(最右5个字节代表目前记录的长度,可作为setbuf时的key，左边27个字节存储的是extradata(是totalElements和lastSequencerTimestamp编码组成))
   ```
+- sdk 中 cross-chain-messager.ts 的 getMessageProof 获取提款交易的 proof 证明
+  - 只为 L2->L1 的交易产生证明
+  - getMessageStateRoot 根据消息遍历事件，查询了 SCC 合约的 StateBatchAppended 事件，拿到对应本消息的 stateroot
+    ```shell
+    emit StateBatchAppended(
+        batchHeader.batchIndex,
+        batchHeader.batchRoot,
+        batchHeader.batchSize,
+        batchHeader.prevTotalElements,
+        batchHeader.extraData
+    );
+    return {
+        stateRoot: stateRootBatch.stateRoots[indexInBatch],
+        stateRootIndexInBatch: indexInBatch,
+        batch: stateRootBatch,
+      }
+    ```
+  - makeStateTrieProof(调用 eth_getProof)构建 L2 特定块高的 Slot 的 proof 证明, 对应的 slot 可计算(本文档 241 行):
+    ```shell
+    const messageSlot = ethers.utils.keccak256(
+      ethers.utils.keccak256(
+        encodeCrossDomainMessageV0(
+          resolved.target,
+          resolved.sender,
+          resolved.message,
+          resolved.messageNonce
+        ) + remove0x(this.contracts.l2.L2CrossDomainMessenger.address)
+      ) + '00'.repeat(32)
+    )
+    ```
+  - 最后产生可调用 L1CrossDomainMessenger.sol relayMessage 的证明
+    ```shell
+    return {
+      stateRoot: stateRoot.stateRoot,
+      stateRootBatchHeader: stateRoot.batch.header,
+      stateRootProof: {
+        index: stateRoot.stateRootIndexInBatch,
+        siblings: makeMerkleTreeProof(
+          stateRoot.batch.stateRoots,
+          stateRoot.stateRootIndexInBatch
+        ),
+      },
+      stateTrieWitness: toHexString(rlp.encode(stateTrieProof.accountProof)),
+      storageTrieWitness: toHexString(rlp.encode(stateTrieProof.storageProof)),
+    }
+    ```
+- L1CrossDomainMessenger.sol 合约 \_verifyStateRootProof 校验提款交易已过挑战期限，并且提交的 proof 是正确的,\_verifyStorageProof 验证关于 OVM_L2ToL1MessagePasser 的 slot 证明是有效的
+- 通过 2 个交易，记录成功的提款交易，执行提款操作
