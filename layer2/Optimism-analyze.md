@@ -309,3 +309,7 @@ relayer 用于测试，生产需要自己用 sdk 嵌入到产品，由用户或�
     ```
 - L1CrossDomainMessenger.sol 合约 \_verifyStateRootProof 校验提款交易已过挑战期限，并且提交的 proof 是正确的,\_verifyStorageProof 验证关于 OVM_L2ToL1MessagePasser 的 slot 证明是有效的
 - 通过 2 个交易，记录成功的提款交易，执行提款操作
+
+## 总结
+
+Op 的机制让用户将资产放到 layer2 进行交易，交易的数据打包到 eth 合约内，并且发布状态根到 eth，欺诈证明目前不可用
